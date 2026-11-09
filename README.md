@@ -7,7 +7,7 @@ PiDev does not build its own bot or coding engine. It combines:
 | Layer | Component |
 |---|---|
 | Telegram UI, sessions, streaming, approval buttons | [OpenACP](https://docs.openacp.ai) (`@openacp/cli`, verified against 2026.518.2) |
-| Coding agent | Claude Code via OpenACP's `claude` ACP agent (`@agentclientprotocol/claude-agent-acp`) |
+| Coding agent | Selected by `LLM_PROVIDER`: **Claude Code** (`claude`, default and guarded), or Codex (`openai`) / Gemini CLI (`gemini`), which are unguarded |
 | Project registry, workspace boundary, write locks, extra deny rules | **PiDev** (this repo: about 1,000 lines of dependency-free Node.js) |
 | Supervision | systemd (`pidev-agent.service`) |
 
@@ -44,7 +44,7 @@ Commands are labelled **[MAC]** or **[PI]**.
 - Raspberry Pi with **64-bit** Raspberry Pi OS (Debian 12+/aarch64). Claude Code does not support 32-bit ARM. 4 GB+ RAM is recommended (Claude Code documents 4 GB+).
 - Node.js 22 LTS on the Pi (OpenACP needs ≥ 20; the Claude Code npm package needs ≥ 22), plus git.
 - Optional but recommended: `bubblewrap` and `socat` for Claude Code's bash sandbox.
-- A Claude Pro/Max/Team/Enterprise or Console account.
+- A model account for the provider you choose: a Claude subscription **or** an Anthropic Console API key (default), an OpenAI key or ChatGPT login, or a Gemini key or Google login.
 - SSH key access from the Mac to the Pi, with a host alias in `~/.ssh/config`.
 
 ## Quick setup
@@ -60,14 +60,43 @@ PIDEV_PI_SSH_HOST=pidev-pi scripts/deploy.sh --apply
 # [PI]
 cd ~/pidev-agent
 scripts/install.sh                 # checks platform, installs OpenACP + Claude Code (no sudo)
-scripts/configure.sh               # token, chat id, owner id, workspace root (silent input, .env 0600)
-claude auth login                  # log in as the Pi service user
+scripts/configure.sh               # token, chat id, owner id, workspace root, LLM provider/model/key (silent input, .env 0600)
+claude auth login                  # ONLY if you left LLM_API_KEY empty (claude provider)
 openacp onboard --dir "$HOME/projects"   # choose Telegram + claude
 scripts/post-onboard.sh            # lock down OpenACP, install agent + PiDev plugin
 bin/pidev.js projects add myapp "$HOME/projects/myapp"
 scripts/install-system.sh          # sudo: managed Claude policy + systemd unit
 scripts/start.sh --foreground      # smoke test from Telegram, Ctrl-C
 scripts/start.sh --enable          # start at boot
+```
+
+## LLM provider and authentication
+
+Set the provider in `.env` with `scripts/configure.sh`:
+
+```dotenv
+LLM_PROVIDER=claude        # claude | openai | gemini
+LLM_MODEL=                 # optional, e.g. claude-opus-5-5 / sonnet, gemini-2.5-pro
+LLM_API_KEY=               # optional; empty = use the agent's own login
+PIDEV_ALLOW_UNGUARDED_PROVIDER=false   # must be true for openai/gemini
+```
+
+| `LLM_PROVIDER` | Agent run by OpenACP | How `LLM_API_KEY` is delivered | How `LLM_MODEL` is applied | PiDev guard |
+|---|---|---|---|---|
+| `claude` (default) | Claude Code | Claude Code `apiKeyHelper` runs `bin/pidev-apikey.js`, so the key is **not** in the agent's environment | managed policy `model` | **Active** |
+| `openai` | Codex CLI (`codex-acp`) | `OPENAI_API_KEY` in OpenACP `agents.json` (0600) | manually, in `~/.codex/config.toml` | **Not active** |
+| `gemini` | Gemini CLI | `GEMINI_API_KEY` in OpenACP `agents.json` (0600) | `GEMINI_MODEL` in `agents.json` | **Not active** |
+
+Billing and data flow:
+- A Claude API key bills per token to your Anthropic Console account. Leaving it empty uses your subscription login (`claude auth login`).
+- Your code goes to whichever vendor you pick.
+
+**Why OpenAI and Gemini are "unguarded":** Claude Code only runs Claude models, so these providers use a *different* coding agent. PiDev's per-tool guard and managed policy are Claude Code features, so they don't run there. That covers the workspace boundary, secret blocks, `sudo`/force-push bans and write locks. PiDev refuses to start such a provider unless you set `PIDEV_ALLOW_UNGUARDED_PROVIDER=true`.
+
+To switch provider, model or key on the Pi:
+
+```bash
+scripts/configure.sh && scripts/post-onboard.sh && scripts/install-system.sh && sudo systemctl restart pidev-agent
 ```
 
 ## Connect Telegram
@@ -93,9 +122,9 @@ The service reads the registry on every command and every tool call, so you don'
 |---|---|
 | `/pidev` | PiDev help, safety rules and health summary |
 | `/projects` | Lists the enabled registered projects |
-| `/project dpersona` | Checks the project and replies with the exact `/new claude /home/…/dpersona` command |
-| `/new claude <path>` (copy from the reply) | OpenACP opens a new topic with a Claude session in that project |
-| *any text in that topic* | A task for Claude in that project |
+| `/project dpersona` | Checks the project and replies with the exact `/new <agent> /home/…/dpersona` command (`claude`, `codex` or `gemini`) |
+| `/new <agent> <path>` (copy from the reply) | OpenACP opens a new topic with an agent session in that project |
+| *any text in that topic* | A task for the agent in that project |
 | `/where` (in a session topic) | Shows the session's project and canonical path |
 | `/cancel`, `/sessions`, `/resume`, `/status`, `/help` | Native OpenACP commands |
 | `/clear` | Native OpenACP command (Assistant topic only). Resets the conversation and never deletes files |
@@ -105,6 +134,8 @@ The service reads the registry on every command and every tool call, so you don'
 - OpenACP's own `/new` with a *name*: it creates `<root>/<name>`, but that folder isn't registered, so the guard blocks every tool there.
 
 ## Approvals
+
+The table below applies to the **claude** provider. With openai or gemini, only that agent's own approval behaviour applies.
 
 Claude Code asks before risky actions. OpenACP shows **Allow / Reject** buttons in the topic, and unanswered requests are auto-denied after 10 minutes.
 
@@ -126,7 +157,8 @@ journalctl -u pidev-agent -f | bin/pidev.js redact
 
 ## Security limitations and data flow
 
-- **Cloud model.** Code and command output that Claude reads are sent to Anthropic, the configured AI provider. Don't register repositories you aren't allowed to send there.
+- **Cloud model.** Code and command output the agent reads are sent to the selected provider (Anthropic, OpenAI or Google). Don't register repositories you aren't allowed to send there.
+- **Non-Claude providers run without the PiDev guard.** See the section above.
 - **Shell rules are not a sandbox.** Command patterns are best-effort. The strong boundaries are:
   - the dedicated non-root OS user;
   - systemd's read-only filesystem, apart from the workspace and state folders;

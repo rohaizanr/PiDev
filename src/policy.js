@@ -11,9 +11,12 @@ const PM = ['npm', 'pnpm', 'yarn'];
 const SCRIPTS = ['test', 'lint', 'build', 'typecheck', 'check', 'format:check'];
 
 /**
- * @param {{ pidevHome: string, nodePath: string, workspaceRoot: string, home: string, sandbox: boolean }} o
+ * @param {{ pidevHome: string, nodePath: string, workspaceRoot: string, home: string, sandbox: boolean,
+ *            apiKeyHelper?: boolean, model?: string|null }} o
+ *   apiKeyHelper: render `apiKeyHelper` (LLM_PROVIDER=claude with LLM_API_KEY set)
+ *   model: Claude model to pin (LLM_PROVIDER=claude with LLM_MODEL set)
  */
-export function renderClaudePolicy({ pidevHome, nodePath, workspaceRoot, home, sandbox }) {
+export function renderClaudePolicy({ pidevHome, nodePath, workspaceRoot, home, sandbox, apiKeyHelper = false, model = null }) {
   for (const [k, v] of Object.entries({ pidevHome, nodePath, workspaceRoot, home })) {
     if (!v || !path.isAbsolute(v)) throw new Error(`${k} must be an absolute path`);
   }
@@ -57,9 +60,10 @@ export function renderClaudePolicy({ pidevHome, nodePath, workspaceRoot, home, s
     'Edit(~/.bashrc)', 'Edit(~/.profile)', 'Edit(~/.bash_profile)', 'Edit(~/.zshrc)', 'Edit(~/.ssh/**)',
     `Read(${abs(instanceDir)}/**)`, `Edit(${abs(instanceDir)}/**)`,
     `Read(${abs(pidevHome)}/.env)`, `Edit(${abs(pidevHome)}/**)`,
+    'Read(~/.codex/**)', 'Read(~/.gemini/**)', 'Read(//proc/**)',
   ];
 
-  const denyReadPaths = ['~/.ssh', '~/.aws', '~/.gnupg', '~/.config/gcloud', '~/.claude/.credentials.json', instanceDir, path.join(pidevHome, '.env')];
+  const denyReadPaths = ['~/.ssh', '~/.aws', '~/.gnupg', '~/.config/gcloud', '~/.claude/.credentials.json', '~/.codex', '~/.gemini', instanceDir, path.join(pidevHome, '.env')];
 
   const policy = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
@@ -91,6 +95,15 @@ export function renderClaudePolicy({ pidevHome, nodePath, workspaceRoot, home, s
       },
     },
   };
+  if (apiKeyHelper) {
+    // Claude Code runs this to obtain the API key; the key is never placed in
+    // the agent's environment (OpenACP would not pass it through anyway).
+    policy.apiKeyHelper = `${quote(nodePath)} ${quote(path.join(pidevHome, 'bin', 'pidev-apikey.js'))}`;
+  }
+  if (model) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:\/\[\]-]{0,99}$/.test(model)) throw new Error('invalid model name');
+    policy.model = model;
+  }
   return policy;
 }
 

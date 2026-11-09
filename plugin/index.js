@@ -33,7 +33,8 @@ Safety rules
 • Only registered projects are reachable; everything else is blocked by the PiDev guard.
 • Commits, pushes, installs, deletions and network transfers ask for your approval (buttons).
 • sudo, force-push, permission bypass and secret files are always blocked.
-• Never paste tokens or keys into this chat.`;
+• Never paste tokens or keys into this chat.
+• The safety rules above are enforced for the claude provider; other providers rely on their own approvals.`;
 
 export default {
   name: '@pidev/openacp-plugin',
@@ -103,9 +104,14 @@ export default {
         const { projects } = registry();
         const p = P.registry.findByName(projects, name);
         if (!p) return { type: 'text', text: `Unknown or disabled project "${name.slice(0, 64)}". See /projects.` };
+        const v = P.config.validateConfig(env(), { requireTelegram: false });
+        const agent = v.config.agent ?? 'claude';
+        const boundary = v.config.guarded
+          ? 'Sessions in any other directory are blocked by the PiDev guard.'
+          : `⚠ Provider ${v.config.provider} (${agent}) is NOT covered by the PiDev guard: only OS limits and the agent's own approvals apply.`;
         return {
           type: 'text',
-          text: `Project ${p.name} ✔\nPath: ${p.canonicalPath}\n\nStart a session bound to it by sending:\n/new claude ${p.canonicalPath}\n\nThen give your instructions in the new topic. Sessions in any other directory are blocked by the PiDev guard.`,
+          text: `Project ${p.name} ✔\nPath: ${p.canonicalPath}\n\nStart a session bound to it by sending:\n/new ${agent} ${p.canonicalPath}\n\nThen give your instructions in the new topic. ${boundary}`,
         };
       }),
     });
@@ -131,7 +137,9 @@ export default {
       handler: guarded(async () => {
         const v = P.config.validateConfig(env(), { requireTelegram: false });
         const { projects } = registry();
-        const health = `\n\nHealth: config ${v.ok ? 'OK' : 'INVALID'} · ${projects.filter((p) => p.enabled).length} project(s) · max ${v.config.maxConcurrentTasks} concurrent session(s)`;
+        const health = `\n\nHealth: config ${v.ok ? 'OK' : 'INVALID'} · ${projects.filter((p) => p.enabled).length} project(s) · max ${v.config.maxConcurrentTasks} concurrent session(s)`
+          + `\nModel: ${v.summary.LLM_PROVIDER} · model ${v.summary.LLM_MODEL} · auth: ${v.config.hasApiKey ? 'API key' : 'agent login'}`
+          + (v.config.guarded ? '' : '\n⚠ PiDev guard INACTIVE for this provider (see docs/SECURITY.md).');
         return { type: 'text', text: HELP + health };
       }),
     });

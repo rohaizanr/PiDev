@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-11-09. ✅ = done and verified · 🟡 = implemented, not yet verified on the Pi · ⬜ = owner action pending.
+Last updated: 2026-11-10. ✅ = done and verified · 🟡 = implemented, not yet verified on the Pi · ⬜ = owner action pending.
 
 ## Discovery
 
@@ -34,13 +34,29 @@ Last updated: 2026-11-09. ✅ = done and verified · 🟡 = implemented, not yet
 - ✅ `npm run check` on the Mac: lint (syntax for all JS + `bash -n` for all scripts + secret scan) and **33/33 tests passing**. This covers the 10 required cases plus the guard process, plugin, policy and OpenACP lock-down.
 - ✅ The deploy exclude list was verified with a local rsync dry run: `.env`, `state/`, `logs/` and `config/projects.json` are not copied.
 
+## LLM provider selection (added 2026-11-10)
+
+- ✅ `.env`: `LLM_PROVIDER` (claude|openai|gemini), `LLM_MODEL`, `LLM_API_KEY`, `PIDEV_ALLOW_UNGUARDED_PROVIDER`
+- ✅ `src/providers.js` maps provider → OpenACP agent `claude` / `codex` / `gemini`. Verified in OpenACP 2026.518.2: `REGISTRY_AGENT_ALIASES`, `AGENT_SETUP` key env names, a linux-aarch64 `codex-acp` binary, Gemini via `npx @google/gemini-cli --acp`.
+- ✅ **Claude API key:** `apiKeyHelper` → `bin/pidev-apikey.js`, rendered into the managed policy. The key is never in the agent's environment.
+- ✅ **openai/gemini:** key and model written to `<instance>/agents.json` `installed.<agent>.env` (agent store schema verified), with PiDev-managed variables removed from non-selected agents.
+- ✅ Fail-closed: openai/gemini refused unless `PIDEV_ALLOW_UNGUARDED_PROVIDER=true`. Warnings in `/project`, `/pidev` and `doctor.sh`.
+- ✅ Guard additions: denies `pidev-apikey`/`pidev-guard`, `$…_API_KEY` expansion, `/proc/*/environ`; secret paths `~/.codex`, `~/.gemini`, `agents.json`, `oauth_creds.json`. Managed policy denies `Read(//proc/**)`.
+- ✅ Redaction for OpenAI (`sk-…`, `sk-proj-…`) and Google (`AIza…`) keys
+- ✅ Scripts: `configure.sh` (provider menu, silent key), `post-onboard.sh` (installs the matching agent and Codex CLI), `doctor.sh` (per-provider auth checks)
+- ✅ 11 new tests; **44/44 passing**, lint OK
+- ⬜ Pi: Claude Code honours `apiKeyHelper` when launched by `claude-agent-acp` (check that a session works with `LLM_API_KEY` set and no `claude auth login`)
+- ⬜ Pi: Codex picks up `OPENAI_API_KEY` from agent env; Gemini picks up `GEMINI_API_KEY`/`GEMINI_MODEL`
+- ⬜ Pi: how Codex and Gemini surface approval requests over ACP (unverified)
+- ⬜ Future: guard-equivalent policies for Codex (sandbox/approval config) and Gemini CLI, which would remove the "unguarded" status
+
 ## Pi (not performed: Pi unreachable)
 
 - ⬜ Configure an SSH alias for the Pi and run `scripts/remote-inspect.sh`
 - 🟡 `scripts/install.sh` (platform checks, OpenACP, Claude Code)
 - ⬜ BotFather bot, private forum group, `/setjoingroups` disabled
 - 🟡 `scripts/configure.sh`
-- ⬜ `claude auth login` on the Pi
+- ⬜ Model auth on the Pi: `LLM_API_KEY`, or `claude auth login` / `codex` / Gemini sign-in
 - ⬜ `openacp onboard --dir $PIDEV_WORKSPACE_ROOT` (check that `--dir` is honoured)
 - 🟡 `scripts/post-onboard.sh`: lock-down, `agents install claude`, `plugin add`. The plugin has only been tested against a mock context, not inside a real OpenACP.
 - 🟡 `scripts/install-system.sh`: managed policy + unit (`systemd-analyze verify`)

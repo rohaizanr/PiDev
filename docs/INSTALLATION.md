@@ -81,18 +81,23 @@ What it does:
 scripts/configure.sh    # silent token entry; writes .env (0600); runs `pidev validate`
 ```
 
-## 7. Claude Code login 🖐 [PI]
+## 7. Model authentication [PI]
 
-```bash
-claude auth login       # opens a URL; on a headless Pi press "c" to copy it, log in on your Mac/phone, paste the code back
-claude auth status >/dev/null && echo authenticated
-```
+`configure.sh` asked for `LLM_PROVIDER`, `LLM_MODEL` and `LLM_API_KEY`. Pick one route:
 
-This is a separate login for the Pi user. Do not copy credentials from the Mac. A Pro/Max/Team/Enterprise or Console account is needed. Alternatives:
-- `ANTHROPIC_API_KEY`: API billing.
-- `claude setup-token`: a one-year OAuth token.
+| Provider | With `LLM_API_KEY` (no login needed) | Without a key (🖐 log in once as the service user) |
+|---|---|---|
+| `claude` | Anthropic Console key `sk-ant-…`, served via `apiKeyHelper`. Bills per token. | `claude auth login` (opens a URL; on a headless Pi press "c" to copy it and paste the code back). Uses a Pro/Max/Team/Enterprise subscription. |
+| `openai` | OpenAI key `sk-…`, written to OpenACP `agents.json` | `codex`, then "Sign in with ChatGPT" |
+| `gemini` | Google AI Studio key `AIza…`, written to OpenACP `agents.json` | `openacp agents run gemini --dir "$PIDEV_WORKSPACE_ROOT"`, then "Sign in with Google" |
 
-OpenACP filters the agent's environment and doesn't pass these variables through by default. The stored login (`~/.claude/.credentials.json`) is the simplest option.
+Notes:
+- Never copy credentials from the Mac.
+- Don't put `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY` in `.env` directly: OpenACP doesn't pass them to the agent.
+- `openai` and `gemini` are **unguarded** (see [SECURITY.md](SECURITY.md#llm-providers-and-api-keys)) and need `PIDEV_ALLOW_UNGUARDED_PROVIDER=true`. `configure.sh` asks you to confirm.
+- `openai` needs the Codex CLI. `post-onboard.sh` offers `npm install -g @openai/codex`.
+
+Check with `bin/pidev.js provider` (shows the provider, model and auth mode; never the key).
 
 ## 8. OpenACP onboarding 🖐 [PI]
 
@@ -103,7 +108,7 @@ openacp onboard --dir "$PIDEV_WORKSPACE_ROOT"
 
 In the wizard:
 - choose **Telegram** and enter the same bot token and group;
-- choose **claude** as the agent;
+- choose **claude** as the agent (`post-onboard.sh` installs and selects the agent that matches `LLM_PROVIDER` anyway);
 - **do not** enable auto-start (systemd handles that);
 - **do not** enable tunnels.
 
@@ -127,7 +132,7 @@ Steps:
    - `runMode=foreground`
    - `autoStart=false`
    - tunnel off
-4. Runs `openacp agents install claude` and `openacp plugin add ~/pidev-agent/plugin`.
+4. Installs the agent for `LLM_PROVIDER` (`openacp agents install claude|codex|gemini`), applies the lock-down plus provider settings (default agent, key/model in `agents.json`), and runs `openacp plugin add ~/pidev-agent/plugin`.
 5. Runs `openacp doctor --dry-run`.
 
 ## 10. Register projects [PI]
@@ -144,7 +149,7 @@ bin/pidev.js projects add dpersona ~/projects/dpersona
 scripts/install-system.sh
 ```
 
-- Renders and installs `/etc/claude-code/managed-settings.d/50-pidev.json` (root-owned). The sandbox is on only if `bwrap` and `socat` are present.
+- Renders and installs `/etc/claude-code/managed-settings.d/50-pidev.json` (root-owned). The sandbox is on only if `bwrap` and `socat` are present. For `LLM_PROVIDER=claude` the policy also includes `apiKeyHelper` (when `LLM_API_KEY` is set) and `model` (when `LLM_MODEL` is set).
 - Renders and installs `/etc/systemd/system/pidev-agent.service` and runs `daemon-reload`.
 - If either file already exists and differs, it shows a diff and asks first.
 - It does **not** enable the service.
@@ -161,7 +166,7 @@ In Telegram, send these and check the results:
 |---|---|
 | `/pidev` | help, with "Health: config OK" |
 | `/projects` | your projects |
-| `/project pidev-sandbox` | a `/new claude …` command |
+| `/project pidev-sandbox` | a `/new <agent> …` command (`claude`, `codex` or `gemini`) |
 | that `/new` command | a new topic |
 | `Show git status and list files` | Claude inspects the repo |
 | `Create hello.txt containing hi, run npm test, show the diff` | edits pass; `npm test` passes |

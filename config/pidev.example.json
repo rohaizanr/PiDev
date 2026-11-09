@@ -5,7 +5,11 @@
     "PIDEV_WORKSPACE_ROOT": "absolute path; OpenACP instance lives at <root>/.openacp so OpenACP's workspace base == this root",
     "PIDEV_MAX_CONCURRENT_TASKS": "1..8; written to OpenACP security.maxConcurrentSessions",
     "PIDEV_LOCK_TTL_MINUTES": "idle minutes before a project write lock can be taken over",
-    "PIDEV_APPROVAL_MODE": "strict (only mode)"
+    "PIDEV_APPROVAL_MODE": "strict (only mode)",
+    "LLM_PROVIDER": "claude | openai | gemini -> OpenACP agent claude | codex | gemini (also sets OpenACP defaultAgent)",
+    "LLM_MODEL": "optional; claude -> managed policy `model`; gemini -> agents.json GEMINI_MODEL; openai -> manual (~/.codex/config.toml)",
+    "LLM_API_KEY": "optional; claude -> apiKeyHelper (bin/pidev-apikey.js); openai/gemini -> agents.json env OPENAI_API_KEY / GEMINI_API_KEY",
+    "PIDEV_ALLOW_UNGUARDED_PROVIDER": "must be true for openai/gemini"
   },
   "openacp (.env, read by OpenACP itself)": {
     "OPENACP_TELEGRAM_BOT_TOKEN": "env override -> plugins/data/@openacp/telegram/settings.json botToken",
@@ -16,17 +20,24 @@
   "openacp instance files changed by 'pidev apply openacp'": {
     "<root>/.openacp/config.json": {
       "workspace.allowExternalWorkspaces": false,
-      "defaultAgent": "claude",
+      "defaultAgent": "<agent for LLM_PROVIDER>",
       "runMode": "foreground",
       "autoStart": false
     },
     "<root>/.openacp/plugins/data/@openacp/security/settings.json": {
-      "allowedUserIds": ["<from PIDEV_ALLOWED_USER_IDS>"],
+      "allowedUserIds": [
+        "<from PIDEV_ALLOWED_USER_IDS>"
+      ],
       "maxConcurrentSessions": "<from PIDEV_MAX_CONCURRENT_TASKS>"
     },
-    "<root>/.openacp/plugins/data/@openacp/tunnel/settings.json": { "enabled": false }
+    "<root>/.openacp/plugins/data/@openacp/tunnel/settings.json": {
+      "enabled": false
+    },
+    "<root>/.openacp/agents.json": {
+      "installed.<agent>.env": "provider key / model env for the selected agent only; PiDev-managed vars removed from other agents"
+    }
   },
   "claude code (root-owned, rendered by 'pidev render claude-policy')": {
-    "/etc/claude-code/managed-settings.d/50-pidev.json": "permissions (allow/ask/deny), bypass disabled, guard hook, sandbox"
+    "/etc/claude-code/managed-settings.d/50-pidev.json": "permissions (allow/ask/deny), bypass disabled, guard hook, sandbox, apiKeyHelper + model when LLM_PROVIDER=claude"
   }
 }

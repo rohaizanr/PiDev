@@ -32,9 +32,9 @@ const SAFE_ENV_EXAMPLES = /^\.env\.(example|sample|template|dist)$/i;
 const SECRET_BASENAME = [
   /^\.env$/i, /^\.env\..+/i, /^id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i, /\.(pem|key|p12|pfx|keystore|jks)$/i,
   /^\.npmrc$/i, /^\.pypirc$/i, /^\.netrc$/i, /^\.git-credentials$/i, /^\.credentials\.json$/i,
-  /^credentials(\.json)?$/i, /^secrets?\.(json|ya?ml|toml)$/i, /^\.htpasswd$/i, /^api-secret$/i,
+  /^credentials(\.json)?$/i, /^oauth_creds\.json$/i, /^agents\.json$/i, /^secrets?\.(json|ya?ml|toml)$/i, /^\.htpasswd$/i, /^api-secret$/i,
 ];
-const SECRET_SEGMENTS = new Set(['.ssh', '.aws', '.gnupg', '.openacp', '.kube', '.docker', '.password-store', '.config/gcloud']);
+const SECRET_SEGMENTS = new Set(['.ssh', '.aws', '.gnupg', '.openacp', '.kube', '.docker', '.password-store', '.config/gcloud', '.codex', '.gemini']);
 // Paths inside a project that must not be *written* (code-execution / policy escalation vectors).
 const WRITE_PROTECTED_SEGMENTS = new Set(['.git', '.claude', '.husky']);
 const WRITE_PROTECTED_BASENAMES = new Set(['.mcp.json', '.gitmodules']);
@@ -65,6 +65,9 @@ export const SHELL_DENY = [
   [/--dangerously-skip-permissions|--permission-mode[ =]bypassPermissions|bypassPermissions/i, 'permission bypass is never allowed'],
   [new RegExp(`${SEP}openacp(\\s|$)`), 'the agent may not drive OpenACP (its local API can toggle bypass mode)'],
   [/\b(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):21420\b/, 'access to the OpenACP local API is not allowed'],
+  [/\/proc\/[^\s'"]*\/(environ|mem|maps|cmdline|fd)\b/, 'reading other processes\' environment or memory is not allowed'],
+  [/pidev-(apikey|guard)\b|apiKeyHelper/, 'the agent may not run PiDev credential or policy helpers'],
+  [/(\$\{?|\bprintenv\s+)(LLM_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY|GEMINI_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|OPENACP_TELEGRAM_BOT_TOKEN)\b/, 'the agent may not read provider API keys or bot tokens'],
   [/\bgit\s+push\b[^;&|]*(\s--force(-with-lease)?\b|\s-[a-zA-Z]*f\b|\s\+[^\s]+)/, 'force push is never allowed'],
   [/\bgit\s+(filter-branch|filter-repo)\b/, 'history rewriting is not allowed'],
   [/\bgit\s+push\b[^;&|]*\s(--delete\b|-d\b|:[^\s]+)/, 'deleting remote branches requires a separate admin workflow'],
