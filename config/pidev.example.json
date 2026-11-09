@@ -1,0 +1,32 @@
+{
+  "_comment": "Reference of every PiDev/OpenACP setting and where it lives. PiDev reads its settings from .env (see .env.example); this file is documentation, not loaded at runtime.",
+  "pidev (.env, owned by PiDev)": {
+    "PIDEV_ALLOWED_USER_IDS": "numeric Telegram user IDs; empty = nobody (fail closed). Also written into OpenACP security.allowedUserIds by 'pidev apply openacp'",
+    "PIDEV_WORKSPACE_ROOT": "absolute path; OpenACP instance lives at <root>/.openacp so OpenACP's workspace base == this root",
+    "PIDEV_MAX_CONCURRENT_TASKS": "1..8; written to OpenACP security.maxConcurrentSessions",
+    "PIDEV_LOCK_TTL_MINUTES": "idle minutes before a project write lock can be taken over",
+    "PIDEV_APPROVAL_MODE": "strict (only mode)"
+  },
+  "openacp (.env, read by OpenACP itself)": {
+    "OPENACP_TELEGRAM_BOT_TOKEN": "env override -> plugins/data/@openacp/telegram/settings.json botToken",
+    "OPENACP_TELEGRAM_CHAT_ID": "env override -> telegram chatId (forum supergroup, -100...)",
+    "OPENACP_TUNNEL_ENABLED": "false",
+    "OPENACP_LOG_LEVEL": "info"
+  },
+  "openacp instance files changed by 'pidev apply openacp'": {
+    "<root>/.openacp/config.json": {
+      "workspace.allowExternalWorkspaces": false,
+      "defaultAgent": "claude",
+      "runMode": "foreground",
+      "autoStart": false
+    },
+    "<root>/.openacp/plugins/data/@openacp/security/settings.json": {
+      "allowedUserIds": ["<from PIDEV_ALLOWED_USER_IDS>"],
+      "maxConcurrentSessions": "<from PIDEV_MAX_CONCURRENT_TASKS>"
+    },
+    "<root>/.openacp/plugins/data/@openacp/tunnel/settings.json": { "enabled": false }
+  },
+  "claude code (root-owned, rendered by 'pidev render claude-policy')": {
+    "/etc/claude-code/managed-settings.d/50-pidev.json": "permissions (allow/ask/deny), bypass disabled, guard hook, sandbox"
+  }
+}

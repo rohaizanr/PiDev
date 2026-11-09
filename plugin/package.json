@@ -1,0 +1,12 @@
+{
+  "name": "@pidev/openacp-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PiDev commands (/projects, /project, /where, /pidev) and fail-closed owner allowlist for OpenACP",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20",
+    "openacp": ">=2026.518.2"
+  }
+}

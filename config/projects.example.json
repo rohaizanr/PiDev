@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "name": "dpersona",
+      "path": "/home/YOUR_PI_USER/projects/dpersona",
+      "enabled": true,
+      "description": "Example project — replace with your own",
+      "repoUrl": "https://github.com/example/dpersona",
+      "trusted": false
+    },
+    {
+      "name": "pidev-sandbox",
+      "path": "/home/YOUR_PI_USER/projects/pidev-sandbox",
+      "enabled": true,
+      "description": "Disposable repo for smoke tests (writes, npm install)",
+      "trusted": true
+    },
+    {
+      "name": "archived-thing",
+      "path": "/home/YOUR_PI_USER/projects/archived-thing",
+      "enabled": false,
+      "description": "Disabled entries are never selectable"
+    }
+  ],
+  "_comment": "Register projects with: bin/pidev.js projects add <name> <absolute-path>. Paths are canonicalised (realpath) and must stay inside PIDEV_WORKSPACE_ROOT. A symlink that resolves outside the root is rejected unless the entry sets \"allowExternalTarget\": true AND \"canonicalPath\" to the exact resolved path (note: OpenACP's allowExternalWorkspaces=false still applies to the path you pass to /new). Projects must not be nested. repoUrl is informational only."
+}

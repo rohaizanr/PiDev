@@ -1,0 +1,67 @@
+# PiDev Agent — systemd unit TEMPLATE. Rendered by scripts/install-system.sh
+# on the Raspberry Pi; @PLACEHOLDERS@ are replaced with the verified service
+# account paths. Do not install by hand without replacing every placeholder.
+[Unit]
+Description=PiDev Agent (OpenACP Telegram bridge -> Claude Code)
+Documentation=file://@PIDEV_HOME@/docs/OPERATIONS.md
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@WORKSPACE_ROOT@
+# Secrets come from a 0600 file, never from the command line.
+EnvironmentFile=@PIDEV_HOME@/.env
+Environment=PIDEV_HOME=@PIDEV_HOME@
+Environment=NODE_ENV=production
+Environment=PATH=@PATH@
+# Refuse to start with an invalid / fail-open configuration.
+ExecStartPre=@NODE_BIN@ @PIDEV_HOME@/bin/pidev.js validate
+# Foreground mode: systemd is the supervisor (no OpenACP self-daemonising,
+# so there is never a second polling process).
+ExecStart=@OPENACP_BIN@ start --foreground --dir @WORKSPACE_ROOT@
+Restart=on-failure
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pidev-agent
+
+# ---- Hardening (compatible with Claude Code's bubblewrap sandbox) ----
+UMask=0077
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Everything is read-only except these paths ("-" = ignore if missing).
+ReadWritePaths=@WORKSPACE_ROOT@ @PIDEV_HOME@/state @PIDEV_HOME@/logs
+ReadWritePaths=-@HOME@/.claude -@HOME@/.claude.json -@HOME@/.openacp
+ReadWritePaths=-@HOME@/.npm -@HOME@/.cache -@HOME@/.local -@HOME@/.config
+# Credentials the agent never needs. Remove ~/.ssh here ONLY if you want the
+# agent to be able to `git push` over SSH (push still requires approval).
+InaccessiblePaths=-@HOME@/.ssh -@HOME@/.aws -@HOME@/.gnupg -@HOME@/.password-store
+# Protect the Pi from runaway builds.
+MemoryMax=80%
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

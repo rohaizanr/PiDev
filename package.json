@@ -1,0 +1,20 @@
+{
+  "name": "pidev-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PiDev Agent: Telegram-controlled Claude Code on a Raspberry Pi, via OpenACP, with workspace allowlisting and a fail-closed guard hook.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "pidev": "bin/pidev.js",
+    "pidev-guard": "bin/pidev-guard.js"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node scripts/lint.mjs",
+    "check": "npm run lint && npm test"
+  }
+}
