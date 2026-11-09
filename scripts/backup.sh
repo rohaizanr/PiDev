@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# [PI] Back up PiDev configuration + state and the OpenACP instance.
+# Run on the Raspberry Pi. Back up PiDev configuration + state and the OpenACP instance.
 # The archive CONTAINS SECRETS (.env, OpenACP plugin settings): it is written
-# with mode 0600 into backups/ (git-ignored, excluded from deploys).
+# with mode 0600 into backups/ (git-ignored).
 source "$(dirname "$0")/lib.sh"
 require_pi_host
 require_not_root

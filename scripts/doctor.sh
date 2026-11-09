@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI] Diagnostics. Read-only. Prints no secret values.
+# Run on the Raspberry Pi. Diagnostics. Read-only. Prints no secret values.
 source "$(dirname "$0")/lib.sh"
 require_pi_host
 set +e

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI — run on the Raspberry Pi as the service account]
+# Run on the Raspberry Pi as the service account.
 # Interactive, silent configuration. Writes $PIDEV_HOME/.env with mode 0600.
 # Secret values are never echoed, logged, or passed on a command line.
 source "$(dirname "$0")/lib.sh"

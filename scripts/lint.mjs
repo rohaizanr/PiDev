@@ -25,12 +25,15 @@ for (const f of files) {
     const r = spawnSync('bash', ['-n', f], { encoding: 'utf8' });
     if (r.status !== 0) { failed++; console.error(`bash -n: ${f}\n${r.stderr}`); }
   }
-  if (/\.(js|mjs|sh|json|md|service|example|template)$/.test(f) || path.basename(f).startsWith('.env')) {
+  // Secret scan covers committed files only: the real .env and the local registry are
+  // git-ignored and legitimately contain secrets/paths on the Pi.
+  const base = path.basename(f);
+  const ignoredLocal = (base.startsWith('.env') && base !== '.env.example') || f === path.join(root, 'config', 'projects.json');
+  if (!ignoredLocal && (/\.(js|mjs|sh|json|md|service|example|template|in)$/.test(f) || base === '.env.example')) {
     const text = fs.readFileSync(f, 'utf8');
     const hit = /\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b|sk-ant-(api|oat)\d{2}-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/.exec(text);
     if (hit && !f.includes(`${path.sep}tests${path.sep}`)) { failed++; console.error(`possible secret in ${path.relative(root, f)}`); }
   }
 }
-if (path.basename(root) && fs.existsSync(path.join(root, '.env'))) console.warn('note: a local .env exists in the source tree; it is git-ignored and excluded from deploys.');
 console.log(failed ? `lint: ${failed} problem(s)` : `lint: ${files.length} files OK`);
 process.exit(failed ? 1 : 0);

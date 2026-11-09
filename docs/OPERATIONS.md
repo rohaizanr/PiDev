@@ -1,6 +1,6 @@
 # Operations
 
-All commands are **[PI]** and run from `~/pidev-agent` unless marked **[MAC]**.
+All commands run on the Raspberry Pi from `~/pidev-agent`.
 
 ## Service lifecycle
 
@@ -68,10 +68,29 @@ Then check ownership, run `scripts/doctor.sh` and start the service.
 
 ## Updates
 
-**PiDev source**
-1. [MAC] `npm run check`, then `scripts/deploy.sh --apply`. It backs up the Pi first.
-2. [PI] `npm test && scripts/doctor.sh && sudo systemctl restart pidev-agent`.
-3. If `src/policy.js` changed, re-run `scripts/install-system.sh`.
+**PiDev source (git clone)**
+
+```bash
+scripts/update.sh --check     # is there an update?
+scripts/update.sh             # shows incoming commits, asks, then updates
+```
+
+`update.sh` runs these steps:
+1. Refuses to run if tracked files have local changes.
+2. Backs up.
+3. `git merge --ff-only` from the upstream.
+4. Runs `npm run check`, rolling back to the previous commit if it fails.
+5. Re-applies the OpenACP lock-down.
+6. Re-runs `install-system.sh` if the policy or unit template changed (it shows a diff first).
+7. Restarts the service.
+
+Then run `scripts/doctor.sh`.
+
+**PiDev source (copied folder, no git):** run `scripts/backup.sh`, replace the code files but keep `.env`, `config/projects.json`, `state/`, `logs/` and `backups/`, then:
+
+```bash
+npm run check && scripts/post-onboard.sh && scripts/install-system.sh && sudo systemctl restart pidev-agent
+```
 
 **OpenACP**
 1. `scripts/backup.sh`, then `openacp update` (or `npm install -g @openacp/cli@latest`).

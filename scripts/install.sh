@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI — run on the Raspberry Pi as the non-root service account]
+# Run on the Raspberry Pi as the non-root service account (setup.sh step "install").
 # User-level installation: verifies the platform, installs OpenACP and Claude
 # Code for THIS user (no sudo), prepares directories. System-level steps
 # (managed Claude policy + systemd unit) are in scripts/install-system.sh.
@@ -9,25 +9,9 @@ require_not_root
 
 say "PiDev install (user level) in $PIDEV_HOME as $(id -un)"
 
-# ---- Platform checks ---------------------------------------------------------
-ARCH="$(uname -m)"
-case "$ARCH" in
-  aarch64|arm64) say "Architecture: $ARCH (supported by Claude Code: linux-arm64)";;
-  armv7l|armv6l) die "Architecture $ARCH (32-bit ARM) is NOT supported by Claude Code (only x64/ARM64). Install 64-bit Raspberry Pi OS. Do not substitute another engine without the owner's decision.";;
-  x86_64) warn "x86_64 detected — not a Raspberry Pi, but supported.";;
-  *) die "Unsupported architecture: $ARCH";;
-esac
-if [[ -r /etc/os-release ]]; then . /etc/os-release; say "OS: ${PRETTY_NAME:-unknown}"; fi
-if [[ -r /proc/device-tree/model ]]; then say "Model: $(tr -d '\0' </proc/device-tree/model)"; fi
-MEM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
-say "RAM: ${MEM_MB} MB"
-(( MEM_MB >= 3500 )) || warn "Claude Code documents 4 GB+ RAM. With ${MEM_MB} MB keep PIDEV_MAX_CONCURRENT_TASKS=1 and consider swap."
-command -v git >/dev/null || die "git is missing. Install it yourself: sudo apt install git"
-command -v systemctl >/dev/null || die "systemd not found."
-
+# ---- Platform checks (shared with scripts/preflight.sh) ----------------------
+"$PIDEV_HOME/scripts/preflight.sh" --quiet || die "Pre-flight blockers found (see above). Fix them and re-run."
 NODE_MAJ=$(node_major)
-(( NODE_MAJ >= 20 )) || die "Node.js >= 20 required by OpenACP (found: $(node --version 2>/dev/null || echo none)). Install Node 22 LTS (e.g. NodeSource or nvm), then re-run."
-(( NODE_MAJ >= 22 )) || warn "Node $NODE_MAJ: OK for OpenACP, but the Claude Code npm package wants Node 22+. The native Claude installer does not need Node."
 
 # ---- npm global prefix without sudo -----------------------------------------
 NPM_PREFIX="$(npm config get prefix)"
@@ -86,12 +70,4 @@ else
   warn "bubblewrap/socat missing: the Claude Code bash sandbox cannot run. Install with: sudo apt install bubblewrap socat"
 fi
 
-say "User-level install done. Next steps (see docs/INSTALLATION.md):"
-cat <<EOF
-  1. scripts/configure.sh                    # secrets + allowlist (silent input)
-  2. claude auth login                       # authenticate Claude Code as $(id -un)
-  3. openacp onboard --dir "\$PIDEV_WORKSPACE_ROOT"   # pick Telegram + claude
-  4. scripts/post-onboard.sh                 # lock down OpenACP, install PiDev plugin + Claude agent
-  5. scripts/install-system.sh               # sudo: managed Claude policy + systemd unit
-  6. scripts/start.sh --foreground           # smoke test, then: scripts/start.sh --enable
-EOF
+say "User-level install done. Continue with: scripts/setup.sh   (or see docs/INSTALLATION.md)"

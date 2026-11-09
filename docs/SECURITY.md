@@ -72,7 +72,8 @@ Use this if your login user also owns other projects or SSH keys:
 ## Secrets
 
 - Pi-only: `.env` (0600, written by `configure.sh` with `read -s`), the OpenACP instance folder (0700), and the Claude login in `~/.claude`.
-- The Mac repo never holds production secrets. `deploy.sh` excludes `.env*` (apart from `.env.example`), state, logs, backups, `config/projects.json` and keys.
+- The git repository never holds secrets. `.gitignore` excludes `.env*` (apart from `.env.example`), `config/projects.json`, state, logs, backups, keys and `.openacp/`, and `npm run check` scans for committed tokens.
+- A git deploy key for pulling PiDev (if used) lives in `~/.ssh`, which the service can't access. Make it read-only on the repository.
 - `bin/pidev.js` output, the guard audit log and `scripts/status.sh` log excerpts all pass through `src/redact.js`.
 
 ## Approval policy

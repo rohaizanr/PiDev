@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI] Service state, PiDev status, guard decisions and a redacted log excerpt.
+# Run on the Raspberry Pi. Service state, PiDev status, guard decisions and a redacted log excerpt.
 #   scripts/status.sh [lines]   (default 40 journal lines)
 source "$(dirname "$0")/lib.sh"
 require_pi_host

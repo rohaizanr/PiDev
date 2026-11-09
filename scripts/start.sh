@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI] Start PiDev.
+# Run on the Raspberry Pi. Start PiDev.
 #   scripts/start.sh               start the systemd service
 #   scripts/start.sh --enable      enable at boot and start
 #   scripts/start.sh --foreground  run OpenACP in this terminal (smoke test; service must be stopped)
