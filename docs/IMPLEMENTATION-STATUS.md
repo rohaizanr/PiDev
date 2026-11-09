@@ -4,8 +4,8 @@ Last updated: 2026-11-10. ✅ = done and verified · 🟡 = implemented, not yet
 
 ## Discovery
 
-- ✅ **Mac:** macOS 26.6.2, arm64 (Mac15,7), Node 22.23.4, npm 10.9.9, git 2.54.0. About 30 GB disk free. No `claude` CLI on PATH (Claude Code runs as the VS Code extension). OpenACP not installed, and deliberately not installed here.
-- ✅ **SSH:** `~/.ssh/config` has one host, `192.168.0.252` (user `mjsr`). The connection **timed out** and the host isn't confirmed to be the Pi. **No Pi facts are verified.**
+- ✅ Code was written and unit-tested on a development machine (macOS arm64, Node 22). That machine is **not** needed to install or run PiDev.
+- ✅ **No Pi facts are verified yet.** No Raspberry Pi has been inspected; `scripts/preflight.sh` checks the hardware and OS at install time.
 - ✅ **OpenACP 2026.518.2** (npm, Node ≥ 20, AGPL-3.0). Its source was inspected from the package tarball without installing it. Findings:
   - Telegram needs a forum supergroup, and updates from other chats are dropped.
   - Empty `allowedUserIds` means everyone is allowed.
@@ -20,19 +20,16 @@ Last updated: 2026-11-10. ✅ = done and verified · 🟡 = implemented, not yet
   - Linux managed settings path is `/etc/claude-code/managed-settings.json` plus `managed-settings.d/`.
   - The Linux sandbox needs bubblewrap and socat.
 
-## Built (Mac)
+## Built
 
 - ✅ Project structure, `.gitignore`, `.env.example`, config examples
 - ✅ `src/` modules: config validation (fail closed), auth policy, registry (realpath, traversal/symlink/nesting checks), guard policy, file-based write locks, redaction, managed-policy renderer, OpenACP lock-down
 - ✅ `bin/pidev.js` CLI and `bin/pidev-guard.js` hook (exit 2 on deny, `ask` JSON, audit log)
 - ✅ `plugin/`: OpenACP plugin (`/projects`, `/project`, `/where`, `/pidev`, fail-closed middleware)
-- ✅ Scripts:
-  - [PI]: install, configure, post-onboard, install-system, start, stop, status, doctor, backup
-  - [MAC]: deploy (dry-run default, no `--delete`), remote-inspect
+- ✅ Scripts (all run on the Pi): setup (guided, resumable), preflight, install, configure, post-onboard, install-system, start, stop, status, doctor, backup, update
 - ✅ systemd unit template with hardening
 - ✅ Docs: README, ARCHITECTURE, SECURITY, INSTALLATION, OPERATIONS, TROUBLESHOOTING
-- ✅ `npm run check` on the Mac: lint (syntax for all JS + `bash -n` for all scripts + secret scan) and **33/33 tests passing**. This covers the 10 required cases plus the guard process, plugin, policy and OpenACP lock-down.
-- ✅ The deploy exclude list was verified with a local rsync dry run: `.env`, `state/`, `logs/` and `config/projects.json` are not copied.
+- ✅ `npm run check`: lint (syntax for all JS + `bash -n` for all scripts + a secret scan of committed files) and tests passing on the development machine. This covers the 10 required cases plus the guard process, plugin, policy, OpenACP lock-down and providers.
 
 ## LLM provider selection (added 2026-11-10)
 
@@ -50,9 +47,20 @@ Last updated: 2026-11-10. ✅ = done and verified · 🟡 = implemented, not yet
 - ⬜ Pi: how Codex and Gemini surface approval requests over ACP (unverified)
 - ⬜ Future: guard-equivalent policies for Codex (sandbox/approval config) and Gemini CLI, which would remove the "unguarded" status
 
-## Pi (not performed: Pi unreachable)
+## Pi-only setup (added 2026-11-10)
 
-- ⬜ Configure an SSH alias for the Pi and run `scripts/remote-inspect.sh`
+- ✅ No second computer needed. `deploy.sh` and `remote-inspect.sh` were removed; the code is obtained with `git clone` on the Pi (tarball/USB as a fallback).
+- ✅ `scripts/setup.sh`: guided, resumable installer (`--status`, `--step`, `--from`, `--reset`). Progress is kept in `state/setup-progress`.
+- ✅ `scripts/preflight.sh`: local read-only checks (64-bit, RAM/swap/disk, Node, git, bubblewrap, sudo, outbound HTTPS, conflicts). Reused by `install.sh`.
+- ✅ `scripts/update.sh`: backup → `git merge --ff-only` → `npm run check` (rolls back on failure) → re-apply → re-render system files if changed → restart. Refuses to run with local modifications.
+- ✅ Lint secret scan skips the real `.env`, so `npm run check` works on a configured Pi (verified with a fake token).
+- ✅ Docs rewritten as a single-machine flow (README, INSTALLATION, OPERATIONS, SECURITY, TROUBLESHOOTING); Mac-only settings removed from `.env.example`.
+- ⬜ Host the repository (e.g. a private GitHub repo) so `git clone` works on the Pi
+- 🟡 `setup.sh`, `preflight.sh` and `update.sh` have passed `bash -n` and review, but have not been run on a Pi
+
+## Pi (not performed yet)
+
+- ⬜ Flash Raspberry Pi OS (64-bit), install base packages + Node 22, `git clone`, `scripts/setup.sh`
 - 🟡 `scripts/install.sh` (platform checks, OpenACP, Claude Code)
 - ⬜ BotFather bot, private forum group, `/setjoingroups` disabled
 - 🟡 `scripts/configure.sh`
@@ -70,7 +78,7 @@ Last updated: 2026-11-10. ✅ = done and verified · 🟡 = implemented, not yet
 ## Not in scope / deviations
 
 - **Private 1:1 chat:** not possible with OpenACP. A private owner-only forum supergroup is used instead (see SECURITY.md).
-- **`/new <name>` and `/clone`:** not implemented. Create or clone over SSH, then `pidev projects add`. OpenACP's native `/new <name>` creates an *unregistered* folder, where the guard blocks all tools.
+- **`/new <name>` and `/clone`:** not implemented. Create or clone the folder in a shell on the Pi, then `pidev projects add`. OpenACP's native `/new <name>` creates an *unregistered* folder, where the guard blocks all tools.
 - **`/project`:** replies with the native `/new claude <path>` command instead of creating the session itself, to avoid depending on undocumented OpenACP internals.
 - **`/start`:** handled natively by OpenACP if at all; PiDev's help is `/pidev`.
 - **Dedicated service account:** documented as the recommended migration. The initial setup uses the account that owns `~/pidev-agent`.

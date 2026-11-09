@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI — run on the Raspberry Pi as the service account, after `openacp onboard`]
+# Run on the Raspberry Pi as the service account, after `openacp onboard`.
 # Locks down the OpenACP instance and installs the PiDev plugin + Claude agent.
 source "$(dirname "$0")/lib.sh"
 require_pi_host

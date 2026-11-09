@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI — run on the Raspberry Pi as the service account; uses sudo for 2 files]
+# Run on the Raspberry Pi as the service account (uses sudo for 2 files).
 # 1. /etc/claude-code/managed-settings.d/50-pidev.json  (root-owned Claude Code policy)
 # 2. /etc/systemd/system/pidev-agent.service            (not enabled here)
 # Shows a diff and asks before replacing anything that already exists.

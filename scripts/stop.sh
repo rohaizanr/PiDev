@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [PI] Stop PiDev gracefully (SIGTERM, 30 s timeout). --disable also removes it from boot.
+# Run on the Raspberry Pi. Stop PiDev gracefully (SIGTERM, 30 s timeout). --disable also removes it from boot.
 source "$(dirname "$0")/lib.sh"
 require_pi_host
 require_not_root

@@ -11,10 +11,7 @@ warn() { printf '\033[33mWARN\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[31mERROR\033[0m %s\n' "$*" >&2; exit 1; }
 
 require_pi_host() {
-  [[ "$(uname -s)" == "Linux" ]] || die "This is a [PI] script. You are on $(uname -s). Run it on the Raspberry Pi (e.g. ssh <pi> '$0')."
-}
-require_mac_host() {
-  [[ "$(uname -s)" == "Darwin" ]] || die "This is a [MAC] script meant for the development machine."
+  [[ "$(uname -s)" == "Linux" ]] || die "PiDev scripts run on the Raspberry Pi (Linux). You are on $(uname -s)."
 }
 require_not_root() {
   [[ "$(id -u)" -ne 0 ]] || die "Do not run PiDev as root. Run as the non-root service account."
@@ -44,3 +41,6 @@ node_major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo
 openacp_bin() { command -v openacp 2>/dev/null || true; }
 
 pidev() { node "$PIDEV_HOME/bin/pidev.js" "$@"; }
+
+# Read one value from .env without sourcing it or printing it.
+env_get() { [[ -f "$PIDEV_HOME/.env" ]] && grep -E "^$1=" "$PIDEV_HOME/.env" | tail -1 | cut -d= -f2- || true; }

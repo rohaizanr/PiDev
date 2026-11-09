@@ -1,6 +1,6 @@
 # PiDev Agent
 
-PiDev is a personal AI developer that runs all the time on a Raspberry Pi. You message a private Telegram group from your phone or Mac. **Claude Code** then works on registered project folders on the Pi: it reads code, edits files, runs tests, and installs dependencies. It asks for your approval before anything risky.
+PiDev is a personal AI developer that runs all the time on a Raspberry Pi. You message a private Telegram group from your phone or computer. **Claude Code** then works on registered project folders on the Pi: it reads code, edits files, runs tests, and installs dependencies. It asks for your approval before anything risky.
 
 PiDev does not build its own bot or coding engine. It combines:
 
@@ -28,47 +28,44 @@ PiDev guard hook ── registered project only · no secrets · no sudo/force-p
 
 > **Telegram constraint:** OpenACP's Telegram adapter only works in a **forum supergroup with Topics**. It does not support a 1:1 private chat. PiDev uses a *private* supergroup that contains only you and the bot. OpenACP ignores every other chat (verified in its source). PiDev and OpenACP both require your numeric user ID. Each task gets its own topic. See [docs/SECURITY.md](docs/SECURITY.md#telegram).
 
-## Two machines
+## Everything runs on the Pi
 
-| | Mac (development) | Raspberry Pi (production) |
-|---|---|---|
-| This repo | Edit, `npm run check` | Deployed copy (`~/pidev-agent`) |
-| OpenACP / bot | **Never run here** | `pidev-agent.service` |
-| Claude Code | Used to develop PiDev | Separate install + separate login |
-| Secrets | None | `~/pidev-agent/.env` (0600), OpenACP instance (0700) |
-
-Commands are labelled **[MAC]** or **[PI]**.
+You need only the Raspberry Pi and Telegram. You install, configure, run and update PiDev directly on the Pi, using its own keyboard or SSH from any device. The browser logins can be finished on your phone. No second computer is required.
 
 ## Prerequisites
 
 - Raspberry Pi with **64-bit** Raspberry Pi OS (Debian 12+/aarch64). Claude Code does not support 32-bit ARM. 4 GB+ RAM is recommended (Claude Code documents 4 GB+).
 - Node.js 22 LTS on the Pi (OpenACP needs ≥ 20; the Claude Code npm package needs ≥ 22), plus git.
-- Optional but recommended: `bubblewrap` and `socat` for Claude Code's bash sandbox.
+- Recommended: `bubblewrap` and `socat` for Claude Code's bash sandbox. Install them with `sudo apt install -y git curl bubblewrap socat`.
 - A model account for the provider you choose: a Claude subscription **or** an Anthropic Console API key (default), an OpenAI key or ChatGPT login, or a Gemini key or Google login.
-- SSH key access from the Mac to the Pi, with a host alias in `~/.ssh/config`.
+- Telegram on your phone or desktop.
+- The PiDev repository reachable from the Pi (`git clone`), or the folder copied over.
 
-## Quick setup
+## Quick setup (on the Pi)
 
 Full details: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ```bash
-# [MAC] check and copy to the Pi (dry run first, then --apply)
-npm run check
-PIDEV_PI_SSH_HOST=pidev-pi scripts/deploy.sh
-PIDEV_PI_SSH_HOST=pidev-pi scripts/deploy.sh --apply
-
-# [PI]
+sudo apt update && sudo apt install -y git curl bubblewrap socat   # and Node.js 22 LTS
+git clone https://github.com/rohaizanr/PiDev.git ~/pidev-agent
 cd ~/pidev-agent
-scripts/install.sh                 # checks platform, installs OpenACP + Claude Code (no sudo)
-scripts/configure.sh               # token, chat id, owner id, workspace root, LLM provider/model/key (silent input, .env 0600)
-claude auth login                  # ONLY if you left LLM_API_KEY empty (claude provider)
-openacp onboard --dir "$HOME/projects"   # choose Telegram + claude
-scripts/post-onboard.sh            # lock down OpenACP, install agent + PiDev plugin
-bin/pidev.js projects add myapp "$HOME/projects/myapp"
-scripts/install-system.sh          # sudo: managed Claude policy + systemd unit
-scripts/start.sh --foreground      # smoke test from Telegram, Ctrl-C
-scripts/start.sh --enable          # start at boot
+scripts/setup.sh          # guided, resumable: preflight → install → configure → onboard → lock-down → login → projects → system → smoke test → enable
 ```
+
+`scripts/setup.sh --status` shows progress, and `--step <name>` re-runs a single step. Every step is also its own script:
+
+| Step | Script |
+|---|---|
+| Pre-flight check (read-only) | `scripts/preflight.sh` |
+| Self-test | `npm run check` |
+| Install OpenACP + Claude Code (no sudo) | `scripts/install.sh` |
+| Secrets, allowlist, workspace, LLM provider | `scripts/configure.sh` |
+| OpenACP wizard | `openacp onboard --dir <workspace root>` |
+| Lock down OpenACP, install agent + plugin | `scripts/post-onboard.sh` |
+| Model login (if no API key) | `claude auth login` / `codex` / `openacp agents run gemini` |
+| Register a project | `bin/pidev.js projects add <name> <path>` |
+| Managed policy + systemd unit (sudo) | `scripts/install-system.sh` |
+| Smoke test / enable | `scripts/start.sh --foreground` / `scripts/start.sh --enable` |
 
 ## LLM provider and authentication
 
@@ -109,7 +106,7 @@ scripts/configure.sh && scripts/post-onboard.sh && scripts/install-system.sh && 
 ## Register a project
 
 ```bash
-# [PI] the folder must already exist under PIDEV_WORKSPACE_ROOT; PiDev never clones, moves or deletes it
+# the folder must already exist under PIDEV_WORKSPACE_ROOT; PiDev never clones, moves or deletes it
 bin/pidev.js projects add dpersona "$HOME/projects/dpersona" --description "Persona app"
 bin/pidev.js projects list
 ```
@@ -150,8 +147,8 @@ Do not use OpenACP's `/enable_bypass` or `/dangerous`. PiDev's managed policy se
 ## Service commands
 
 ```bash
-# [PI]
 scripts/start.sh | scripts/stop.sh | scripts/status.sh | scripts/doctor.sh | scripts/backup.sh
+scripts/update.sh          # backup → git pull --ff-only → checks → re-apply → restart
 journalctl -u pidev-agent -f | bin/pidev.js redact
 ```
 

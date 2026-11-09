@@ -6,7 +6,7 @@ Start with `scripts/doctor.sh` and `scripts/status.sh` on the Pi.
 
 | Symptom | Check |
 |---|---|
-| Bot never answers | `scripts/status.sh`. Is the service active? Does `journalctl` show `409 Conflict`? That means another process is polling the same token: stop `openacp` on other machines (including the Mac!), `systemctl --user disable --now openacp`, and check for stray `openacp` processes. |
+| Bot never answers | `scripts/status.sh`. Is the service active? Does `journalctl` show `409 Conflict`? That means another process is polling the same token: stop `openacp` on any other machine using the same token, `systemctl --user disable --now openacp`, and check for stray `openacp` processes. |
 | Answers nothing to you, but logs show "dropped message from unauthorised user" | Your ID isn't in `PIDEV_ALLOWED_USER_IDS`, or you used a username. Re-run `configure.sh`, then `post-onboard.sh`, then restart. |
 | "Chat must be a group" / forum errors in `openacp doctor` | The group needs **Topics** enabled and the bot as admin with *Manage Topics*. The chat ID must be the `-100…` supergroup ID. |
 | Works in foreground, not as a service | `journalctl -u pidev-agent -n 100`. Look for PATH problems (`openacp`/`claude` not found) and re-run `install-system.sh`, which re-renders PATH. Or a missing `ReadWritePaths` entry: "EROFS"/"read-only file system". |
@@ -17,10 +17,22 @@ Start with `scripts/doctor.sh` and `scripts/status.sh` on the Pi.
 
 | Symptom | Fix |
 |---|---|
-| "not logged in" / auth errors in session | Run `claude auth login` as the **service user** (not root, not the Mac). Check with `claude auth status >/dev/null && echo ok`. |
+| "not logged in" / auth errors in session | Run `claude auth login` as the **service user** on the Pi (not root). Check with `claude auth status >/dev/null && echo ok`. |
 | Works for you in SSH but not in the service | The service HOME must be the same user's home. Check `systemctl show -p User pidev-agent`. |
 | `blockWritesOutsideWorkingDirectories` unknown | Claude Code is older than v2.1.314. Run `claude update`. |
 | Bypass or "auto" mode missing in OpenACP menus | Intended. Managed policy disables them. |
+
+## Setup and updates
+
+| Symptom | Fix |
+|---|---|
+| `setup.sh` stopped at a step | Fix the reported issue, then run `scripts/setup.sh` (it resumes) or `scripts/setup.sh --step <name>`. `--status` shows progress. |
+| `preflight.sh` BLOCK: 32-bit | Reflash with Raspberry Pi OS (64-bit). |
+| `preflight.sh` BLOCK: cannot reach api.telegram.org / registry.npmjs.org | Check network, DNS and proxy. PiDev needs outbound HTTPS only. |
+| `npm run check` fails on the Pi | Check Node ≥ 20 (`node --version`). Make sure the clone is complete (`git status`). |
+| `update.sh`: "Local modifications" | Commit or stash your edits yourself. `update.sh` never discards changes. |
+| `update.sh`: "no upstream" | `git branch --set-upstream-to origin/<branch>` |
+| `git clone` asks for a password on a private repo | Use a read-only deploy key or a fine-grained token (INSTALLATION step 3). |
 
 ## LLM provider
 
@@ -59,7 +71,7 @@ Start with `scripts/doctor.sh` and `scripts/status.sh` on the Pi.
 | `projects add` → "symlink escape" | The folder resolves outside the root. Move the project into the root, or opt in explicitly (see `config/projects.example.json`). |
 | `projects add` → "overlaps" | Projects can't be nested. Register the outer **or** the inner folder, not both. |
 | Agent says "project is busy" | Another session holds the write lock. Finish or `/cancel` it, or run `bin/pidev.js locks --release <id>`. |
-| A legitimate command is blocked | Check `logs/guard.log` for the rule. If it's a false positive, adjust `SHELL_DENY`/`SHELL_ASK` in `src/guard.js` on the Mac, add a test, deploy. Don't weaken managed settings on the Pi by hand. |
+| A legitimate command is blocked | Check `logs/guard.log` for the rule. If it's a false positive, adjust `SHELL_DENY`/`SHELL_ASK` in `src/guard.js`, add a test, and run `npm run check`. Commit the change to your repository so `update.sh` keeps it. Don't weaken managed settings on the Pi by hand. |
 
 ## Service
 
