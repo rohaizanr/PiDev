@@ -52,7 +52,10 @@ sed -e "s#@USER@#$(id -un)#g" -e "s#@GROUP@#$(id -gn)#g" -e "s#@HOME@#$HOME#g" \
     -e "s#@PIDEV_HOME@#$PIDEV_HOME#g" -e "s#@WORKSPACE_ROOT@#$PIDEV_WORKSPACE_ROOT#g" \
     -e "s#@NODE_BIN@#$NODE_BIN#g" -e "s#@OPENACP_BIN@#$OPENACP#g" -e "s#@PATH@#$SERVICE_PATH#g" \
     "$PIDEV_HOME/systemd/pidev-agent.service.in" > "$TMP/$SERVICE_NAME"
-grep -q '@[A-Z_]*@' "$TMP/$SERVICE_NAME" && die "Unrendered placeholder in unit file."
+# Check only directives (comment lines may mention the placeholder syntax).
+if LEFT="$(grep -v '^[[:space:]]*#' "$TMP/$SERVICE_NAME" | grep -oE '@[A-Z_]+@' | sort -u | tr '\n' ' ')" && [[ -n "$LEFT" ]]; then
+  die "Unrendered placeholder(s) in unit file: $LEFT"
+fi
 if systemctl list-unit-files --no-legend | awk '{print $1}' | grep -qx "openacp.service"; then
   warn "An OpenACP user/system unit exists. Two pollers on one bot token conflict. Disable it: systemctl --user disable --now openacp"
 fi

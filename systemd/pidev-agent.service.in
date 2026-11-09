@@ -1,5 +1,5 @@
 # PiDev Agent — systemd unit TEMPLATE. Rendered by scripts/install-system.sh
-# on the Raspberry Pi; @PLACEHOLDERS@ are replaced with the verified service
+# on the Raspberry Pi; the @NAME@ placeholders are replaced with the verified service
 # account paths. Do not install by hand without replacing every placeholder.
 [Unit]
 Description=PiDev Agent (OpenACP Telegram bridge -> Claude Code)
