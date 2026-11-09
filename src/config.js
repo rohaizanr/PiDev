@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseAllowedUserIds } from './auth.js';
 import { describeSecret } from './redact.js';
+import { getProvider, PROVIDER_NAMES, PROVIDERS, authMode } from './providers.js';
 
 export const PIDEV_HOME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -99,6 +100,36 @@ export function validateConfig(env, { requireTelegram = true, checkFs = true } =
 
   if ((env.OPENACP_TUNNEL_ENABLED ?? 'false') !== 'false') warnings.push('OPENACP_TUNNEL_ENABLED is not "false"; public tunnels are out of scope for the MVP.');
 
+  // ---- LLM provider ----------------------------------------------------------
+  const providerName = (env.LLM_PROVIDER || 'claude').trim().toLowerCase();
+  const provider = getProvider(providerName);
+  const model = (env.LLM_MODEL ?? '').trim();
+  const apiKey = (env.LLM_API_KEY ?? '').trim();
+  const allowUnguarded = env.PIDEV_ALLOW_UNGUARDED_PROVIDER === 'true';
+  if (!provider) {
+    errors.push(`LLM_PROVIDER must be one of: ${PROVIDER_NAMES.join(', ')}.`);
+  } else {
+    if (model) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:\/\[\]-]{0,99}$/.test(model)) errors.push('LLM_MODEL contains invalid characters.');
+      else if (!provider.modelRe.test(model)) warnings.push(`LLM_MODEL "${model}" does not look like ${provider.modelHint}. It will be used as-is.`);
+      if (provider.modelDelivery === 'manual') warnings.push(`LLM_MODEL is not applied automatically for ${providerName}: ${provider.modelHint}.`);
+    }
+    if (apiKey) {
+      if (!provider.keyRe.test(apiKey)) {
+        const other = Object.entries(PROVIDERS).find(([n, p]) => n !== providerName && p.keyRe.test(apiKey));
+        errors.push(`LLM_API_KEY does not look like ${provider.keyHint}${other ? ` (it looks like a ${other[0]} key — check LLM_PROVIDER)` : ''}. Value not shown.`);
+      }
+      if (providerName === 'openai' && /^sk-ant-/.test(apiKey)) errors.push('LLM_API_KEY is an Anthropic key but LLM_PROVIDER=openai. Value not shown.');
+    }
+    if (!provider.guarded && !allowUnguarded) {
+      errors.push(`LLM_PROVIDER=${providerName} runs the ${provider.agent} agent, which PiDev's per-tool guard and managed policy do NOT protect (they are Claude Code features). Set PIDEV_ALLOW_UNGUARDED_PROVIDER=true to accept that, or use LLM_PROVIDER=claude. See docs/SECURITY.md.`);
+    }
+    if (!provider.guarded && allowUnguarded) warnings.push(`Unguarded provider: ${providerName} (${provider.agent}) runs without the PiDev guard hook; only OS/systemd limits and the agent's own approvals apply.`);
+  }
+  for (const legacy of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) {
+    if (env[legacy]) warnings.push(`${legacy} is set but is not used by PiDev (OpenACP does not pass it to the agent). Put the key in LLM_API_KEY instead and remove ${legacy}.`);
+  }
+
   const config = {
     chatId,
     allowedUserIds: ids.valid,
@@ -106,6 +137,11 @@ export function validateConfig(env, { requireTelegram = true, checkFs = true } =
     maxConcurrentTasks: maxTasks,
     lockTtlMinutes: lockTtl,
     approvalMode: mode,
+    provider: provider ? providerName : null,
+    agent: provider?.agent ?? null,
+    guarded: provider?.guarded ?? false,
+    model: model || null,
+    hasApiKey: Boolean(apiKey),
   };
   const summary = {
     OPENACP_TELEGRAM_BOT_TOKEN: describeSecret(token),
@@ -115,6 +151,10 @@ export function validateConfig(env, { requireTelegram = true, checkFs = true } =
     PIDEV_MAX_CONCURRENT_TASKS: maxTasks,
     PIDEV_LOCK_TTL_MINUTES: lockTtl,
     PIDEV_APPROVAL_MODE: mode,
+    LLM_PROVIDER: provider ? `${providerName} -> ${provider.agent} agent (${provider.guarded ? 'guarded' : 'UNGUARDED'})` : `invalid (${providerName.slice(0, 20)})`,
+    LLM_MODEL: model || '(agent default)',
+    LLM_API_KEY: apiKey ? describeSecret(apiKey) : 'not set (agent login)',
+    AUTH: provider ? authMode(providerName, Boolean(apiKey)) : 'n/a',
   };
   return { ok: errors.length === 0, errors, warnings, config, summary };
 }

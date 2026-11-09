@@ -3,8 +3,10 @@
 const PATTERNS = [
   // Telegram bot tokens: <bot id>:<35+ chars>
   /\b\d{6,}:[A-Za-z0-9_-]{30,}\b/g,
-  // Anthropic keys / OAuth tokens
+  // Anthropic keys / OAuth tokens, OpenAI keys (sk-, sk-proj-), Google API keys
   /\bsk-ant-[A-Za-z0-9_-]{10,}\b/g,
+  /\bsk-(proj-|svcacct-)?[A-Za-z0-9_-]{20,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{30,}\b/g,
   // Generic bearer / authorization headers
   /(authorization\s*[:=]\s*)(bearer\s+)?[^\s"']+/gi,
   /\bbearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,

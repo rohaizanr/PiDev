@@ -19,10 +19,28 @@ say "Tooling"
 NM=$(node_major); (( NM >= 20 )) && ok "node $(node --version)" || bad "node >= 20 required (found $(node --version 2>/dev/null || echo none))"
 command -v git >/dev/null && ok "$(git --version)" || bad "git missing"
 if [[ -n "$(openacp_bin)" ]]; then ok "openacp $(openacp --version 2>/dev/null | head -1)"; else bad "openacp not on PATH"; fi
-if command -v claude >/dev/null; then
-  ok "claude $(claude --version 2>/dev/null | head -1)"
-  if claude auth status >/dev/null 2>&1; then ok "claude authenticated (details not shown)"; else bad "claude not authenticated — run: claude auth login"; fi
-else bad "claude not installed"; fi
+PROVIDER="$(grep -E '^LLM_PROVIDER=' "$PIDEV_HOME/.env" 2>/dev/null | tail -1 | cut -d= -f2-)"; PROVIDER="${PROVIDER:-claude}"
+HASKEY="$(grep -qE '^LLM_API_KEY=.+' "$PIDEV_HOME/.env" 2>/dev/null && echo yes || echo no)"
+say "LLM provider: $PROVIDER (API key: $HASKEY)"
+case "$PROVIDER" in
+  claude)
+    if command -v claude >/dev/null; then
+      ok "claude $(claude --version 2>/dev/null | head -1)"
+      if [[ "$HASKEY" == yes ]]; then
+        node "$PIDEV_HOME/bin/pidev-apikey.js" >/dev/null 2>&1 && ok "apiKeyHelper returns a key (not shown)" || bad "bin/pidev-apikey.js failed — check LLM_API_KEY with: bin/pidev.js provider"
+        grep -q '"apiKeyHelper"' /etc/claude-code/managed-settings.d/50-pidev.json 2>/dev/null && ok "managed policy has apiKeyHelper" || bad "managed policy lacks apiKeyHelper — re-run scripts/install-system.sh"
+      elif claude auth status >/dev/null 2>&1; then ok "claude logged in (details not shown)"
+      else bad "claude not authenticated — set LLM_API_KEY (scripts/configure.sh) or run: claude auth login"; fi
+    else bad "claude not installed"; fi;;
+  openai)
+    note "UNGUARDED provider: PiDev guard hook and managed policy do not apply to Codex"
+    command -v codex >/dev/null && ok "codex $(codex --version 2>/dev/null | head -1)" || bad "codex CLI missing — npm install -g @openai/codex"
+    [[ "$HASKEY" == yes ]] || note "no LLM_API_KEY: make sure 'codex' login was completed as $(id -un)";;
+  gemini)
+    note "UNGUARDED provider: PiDev guard hook and managed policy do not apply to Gemini CLI"
+    [[ "$HASKEY" == yes ]] || note "no LLM_API_KEY: make sure 'openacp agents run gemini' login was completed";;
+  *) bad "unknown LLM_PROVIDER '$PROVIDER'";;
+esac
 command -v bwrap >/dev/null && command -v socat >/dev/null && ok "bubblewrap + socat (sandbox available)" || note "bubblewrap/socat missing — Claude Code bash sandbox disabled"
 
 say "PiDev configuration"
@@ -41,6 +59,10 @@ if [[ -n "${PIDEV_WORKSPACE_ROOT:-}" && -f "$PIDEV_WORKSPACE_ROOT/.openacp/confi
   SEC="$INST/plugins/data/@openacp/security/settings.json"
   node -e 'const s=require(process.argv[1]); process.exit((s.allowedUserIds||[]).length>0?0:1)' "$SEC" 2>/dev/null && ok "OpenACP allowedUserIds non-empty" || bad "OpenACP allowedUserIds EMPTY (OpenACP would allow everyone) — run scripts/post-onboard.sh"
   grep -rq '@pidev/openacp-plugin' "$INST/plugins.json" "$INST/plugins" 2>/dev/null && ok "PiDev plugin registered" || bad "PiDev plugin not installed — run scripts/post-onboard.sh"
+  WANT_AGENT="$(case "$PROVIDER" in openai) echo codex;; gemini) echo gemini;; *) echo claude;; esac)"
+  node -e 'const c=require(process.argv[1]); process.exit(c.defaultAgent===process.argv[2]?0:1)' "$INST/config.json" "$WANT_AGENT" && ok "OpenACP defaultAgent=$WANT_AGENT" || bad "OpenACP defaultAgent is not $WANT_AGENT — run scripts/post-onboard.sh"
+  node -e 'const s=require(process.argv[1]); process.exit(s.installed && s.installed[process.argv[2]]?0:1)' "$INST/agents.json" "$WANT_AGENT" 2>/dev/null && ok "agent '$WANT_AGENT' installed in OpenACP" || bad "agent '$WANT_AGENT' not installed — openacp agents install $WANT_AGENT --dir \"\$PIDEV_WORKSPACE_ROOT\""
+  [[ -f "$INST/agents.json" ]] && { m="$(stat -c '%a' "$INST/agents.json")"; [[ "$m" == 600 ]] && ok "agents.json mode 600" || note "agents.json mode $m (expected 600; may hold an API key)"; }
   "$(openacp_bin)" doctor --dry-run --dir "$PIDEV_WORKSPACE_ROOT" >/dev/null 2>&1 && ok "openacp doctor" || note "openacp doctor reports issues: openacp doctor --dry-run --dir \"$PIDEV_WORKSPACE_ROOT\""
 else bad "OpenACP instance not initialised — openacp onboard --dir \"\$PIDEV_WORKSPACE_ROOT\""; fi
 

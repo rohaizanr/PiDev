@@ -82,8 +82,25 @@ Then check ownership, run `scripts/doctor.sh` and start the service.
 - The native install auto-updates. npm installs need `npm update -g @anthropic-ai/claude-code`.
 - After a major update, run `scripts/doctor.sh` and repeat the smoke test.
 
+## Changing LLM provider, model or key
+
+```bash
+scripts/configure.sh          # choose provider / model / key (key read silently; "-" removes it)
+scripts/post-onboard.sh       # installs the agent, sets defaultAgent, writes agents.json env
+scripts/install-system.sh     # re-renders the managed policy (apiKeyHelper / model for claude)
+sudo systemctl restart pidev-agent
+bin/pidev.js provider && scripts/doctor.sh
+```
+
+Effects:
+- Existing sessions keep the agent they were started with. Start new ones with `/project <name>`.
+- After switching away from openai/gemini or rotating their key, delete stale backups that may hold the old key: `rm "$PIDEV_WORKSPACE_ROOT"/.openacp/agents.json.bak-*`.
+
 ## Rotating secrets
 
 - **Bot token:** in @BotFather, run `/revoke`, then `scripts/configure.sh` (enter the new token), then `sudo systemctl restart pidev-agent`. OpenACP persists the env override into its plugin settings on start.
 - **Claude login:** `claude auth logout && claude auth login`.
+- **LLM API key:** revoke it in the vendor console, then `scripts/configure.sh`.
+  - claude: Claude Code re-runs the helper from time to time (its output is cached), so restart the service to apply the new key at once. No re-render is needed.
+  - openai/gemini: also run `scripts/post-onboard.sh`, delete `agents.json.bak-*`, and restart.
 - **Owner IDs:** `scripts/configure.sh`, then `scripts/post-onboard.sh` (re-applies `allowedUserIds`), then restart.

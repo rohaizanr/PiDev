@@ -16,6 +16,7 @@ PiDev lets a cloud AI model run commands and edit files on your Pi. Treat it as 
 | Destructive git or remote operations | Force-push, remote branch deletion and history rewrites are denied. Commit, push, reset, clean and stash ask. |
 | Two sessions editing the same repo | Guard write lock per project. Max concurrent sessions defaults to 1. |
 | Resource exhaustion | `MemoryMax=80%`, `TasksMax=512`, one session by default |
+| LLM API key theft | **claude:** the key is served by `apiKeyHelper` and never placed in the agent's environment. The guard denies running `pidev-apikey`, expanding `$…_API_KEY`, and reading `/proc/*/environ`. Managed policy denies `Read(//proc/**)`. **openai/gemini:** the key sits in the agent's environment (no stronger option exists in OpenACP today). |
 
 ## Telegram
 
@@ -43,6 +44,24 @@ Use this if your login user also owns other projects or SSH keys:
 4. Move or clone the projects into `/home/pidev/projects`.
 5. Stop and disable the old service.
 
+## LLM providers and API keys
+
+- **`claude` (default) is the only guarded provider.** Every control in this document applies to it.
+- **`openai` (Codex) and `gemini` (Gemini CLI) are unguarded.** The PiDev guard hook and the managed Claude Code policy don't run for other agents. The workspace boundary, secret blocks, shell deny/ask rules, write locks, disabled bypass mode and the sandbox all depend on them. What remains:
+  - the Telegram allowlist;
+  - OpenACP's `allowExternalWorkspaces=false` and session limit;
+  - the systemd hardening (non-root, read-only filesystem except the workspace and state, `~/.ssh` inaccessible);
+  - whatever approval behaviour Codex or Gemini CLI apply over ACP (not verified by PiDev).
+
+  `pidev validate` refuses these providers unless `PIDEV_ALLOW_UNGUARDED_PROVIDER=true`. `/project`, `/pidev` and `doctor.sh` all show a warning.
+- **Where `LLM_API_KEY` lives:**
+  - It is entered silently by `configure.sh` and stored only in `.env` (0600).
+  - **claude:** the root-owned managed policy sets `apiKeyHelper` to `bin/pidev-apikey.js`, which prints the key only when `LLM_PROVIDER=claude`. The key is not in the agent's environment.
+  - **openai/gemini:** the key is copied into `<root>/.openacp/agents.json` (0600, inside the 0700 instance folder) and passed to the agent as `OPENAI_API_KEY`/`GEMINI_API_KEY`. Any shell command those agents run can read it. Prefer a restricted, spend-limited key.
+- **Process environment exposure:** systemd's `EnvironmentFile` puts the bot token and `LLM_API_KEY` into OpenACP's process environment. A same-user process could read it via `/proc/<pid>/environ`. For claude this is blocked by the guard and the managed policy, and by the sandbox when it's enabled. For other providers it isn't.
+- **Leftover copies:** `.bak-*` copies of `agents.json` written by `pidev apply openacp` may contain old keys. After rotating a key, delete them: `rm <root>/.openacp/agents.json.bak-*`.
+- Log in instead of using a key (`claude auth login`, `codex`, Gemini Google sign-in) if you prefer no long-lived key on the Pi.
+
 ## Workspace boundary
 
 - Only folders in `config/projects.json` count. Each entry is realpath'd and must lie inside `PIDEV_WORKSPACE_ROOT`.
@@ -69,7 +88,7 @@ The guard never *grants* permission. It only denies, asks, or defers to Claude C
 1. **Shell pattern matching is best-effort.** A determined model could hide a command, for example through an interpreter one-liner or encoded strings. Without the bubblewrap sandbox, Bash commands can write anywhere the service user can, within systemd's `ReadWritePaths` (which include the whole workspace root, so other projects too). Install `bubblewrap` and `socat` so the policy is rendered with `sandbox.enabled=true` and `failIfUnavailable=true`. Sandbox support on Linux arm64 is not stated in Anthropic's docs: verify it on your Pi with `/sandbox` or the doctor.
 2. **Approval buttons are visible to the whole group.** Keep the group owner-only.
 3. **OpenACP state contains the bot token** (`<root>/.openacp/plugins/data/@openacp/telegram/settings.json`, because OpenACP persists env overrides). The instance sits inside the workspace root, which is the price of `allowExternalWorkspaces=false`. Access from the agent is blocked by managed deny rules, the guard (`.openacp` segment), sandbox `denyRead`, and the guard ban on `openacp`.
-4. **The guard is Claude-specific.** Switching OpenACP to another agent removes the hook layer.
+4. **The guard is Claude-specific.** `LLM_PROVIDER=openai|gemini` removes the hook and managed-policy layers (see "LLM providers and API keys").
 5. **Untested on real hardware** until you complete the steps in [IMPLEMENTATION-STATUS](IMPLEMENTATION-STATUS.md).
 6. **Unverified managed-settings keys.** `allowManagedHooksOnly` and `enableAllProjectMcpServers` come from the Claude Code settings reference, but the doc pages fetched during development were truncated. After installing, run `/status` in a Claude session on the Pi and check that "Enterprise managed settings (file)" is listed. Then check that a repo-local hook does not run.
 7. **The agent can read non-secret files of the service user** that are inside the workspace root. Keep unrelated material out of it.

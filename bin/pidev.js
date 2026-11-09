@@ -32,7 +32,8 @@ const USAGE = `pidev — PiDev Agent operator CLI
   pidev projects add <name> <abs-path> [--description TEXT] [--trusted] [--disabled]
   pidev projects check <name>            Validate one project
   pidev render claude-policy [--sandbox on|off]   Print Claude Code managed-settings JSON
-  pidev apply openacp [--dry-run]        Apply allowlist/workspace lock-down to the OpenACP instance
+  pidev apply openacp [--dry-run]        Apply allowlist/workspace lock-down + LLM provider to the OpenACP instance
+  pidev provider                         Show the configured LLM provider, agent and auth mode (no secrets)
   pidev locks [--release <session-id>]   Show or release project write locks
   pidev redact                           Redact secrets from stdin (for log excerpts)
 `;
@@ -106,16 +107,30 @@ try {
       const v = validateConfig(env, { requireTelegram: false });
       if (!v.config.workspaceRoot) throw new Error('PIDEV_WORKSPACE_ROOT invalid: ' + v.errors.join('; '));
       const sandbox = (opt('--sandbox') ?? 'on') === 'on';
-      out(JSON.stringify(renderClaudePolicy({ pidevHome: PIDEV_HOME, nodePath: process.execPath, workspaceRoot: v.config.workspaceRoot, home: os.homedir(), sandbox }), null, 2));
+      const isClaude = v.config.provider === 'claude';
+      out(JSON.stringify(renderClaudePolicy({
+        pidevHome: PIDEV_HOME, nodePath: process.execPath, workspaceRoot: v.config.workspaceRoot, home: os.homedir(), sandbox,
+        apiKeyHelper: isClaude && v.config.hasApiKey,
+        model: isClaude ? v.config.model : null,
+      }), null, 2));
       process.exit(0);
     }
     case 'apply': {
       if (sub !== 'openacp') break;
       const v = validateConfig(env);
       if (!v.ok) { v.errors.forEach((e) => err(`ERROR ${e}`)); process.exit(1); }
-      const { changes } = applyOpenacpSettings(v.config, { dryRun: flag('--dry-run') });
+      v.warnings.forEach((w) => err(`WARN  ${w}`));
+      const { changes } = applyOpenacpSettings(v.config, { dryRun: flag('--dry-run'), apiKey: (env.LLM_API_KEY ?? '').trim() });
       out(changes.length ? changes.map((c) => `${flag('--dry-run') ? 'would change' : 'changed'}: ${c}`).join('\n') : 'OpenACP settings already compliant.');
       process.exit(0);
+    }
+    case 'provider': {
+      const v = validateConfig(env, { requireTelegram: false });
+      for (const k of ['LLM_PROVIDER', 'LLM_MODEL', 'LLM_API_KEY', 'AUTH']) out(`  ${k.padEnd(14)} ${v.summary[k]}`);
+      v.warnings.forEach((w) => out(`WARN  ${w}`));
+      const provErrors = v.errors.filter((e) => /LLM_|PROVIDER/.test(e));
+      provErrors.forEach((e) => err(`ERROR ${e}`));
+      process.exit(v.config.provider && provErrors.length === 0 ? 0 : 1);
     }
     case 'locks': {
       const store = new LockStore(path.join(PIDEV_HOME, 'state', 'locks'), { ttlMs: Number(env.PIDEV_LOCK_TTL_MINUTES || 30) * 60_000 });

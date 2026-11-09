@@ -22,11 +22,23 @@ Start with `scripts/doctor.sh` and `scripts/status.sh` on the Pi.
 | `blockWritesOutsideWorkingDirectories` unknown | Claude Code is older than v2.1.314. Run `claude update`. |
 | Bypass or "auto" mode missing in OpenACP menus | Intended. Managed policy disables them. |
 
+## LLM provider
+
+| Symptom | Fix |
+|---|---|
+| `pidev validate`: "runs the codex/gemini agent, which PiDev's per-tool guard … do NOT protect" | Intended fail-closed behaviour. Use `LLM_PROVIDER=claude`, or knowingly set `PIDEV_ALLOW_UNGUARDED_PROVIDER=true`. |
+| "LLM_API_KEY does not look like …" | The key doesn't match the provider (e.g. an OpenAI key with `LLM_PROVIDER=claude`). Re-run `configure.sh`. The value is never printed. |
+| Claude: "Invalid API key" / auth errors with a key set | `node bin/pidev-apikey.js >/dev/null && echo ok`. Check that the managed policy contains `apiKeyHelper` (`doctor.sh`); if not, re-run `install-system.sh`. Check the key and billing in the Anthropic Console. |
+| Claude still uses the subscription, or asks to log in | `LLM_API_KEY` is empty, or the policy was rendered before you added the key. Re-run `install-system.sh`. |
+| Codex/Gemini: not authenticated | Re-run `post-onboard.sh` (writes the key into `agents.json`), or log in as the service user (`codex` / `openacp agents run gemini --dir …`). |
+| `LLM_MODEL` ignored for openai | Expected. Set `model = "..."` in `~/.codex/config.toml` on the Pi. |
+| "ANTHROPIC_API_KEY is set but is not used" warning | Move the value to `LLM_API_KEY` and delete the old variable from `.env`. |
+
 ## ACP / agent startup
 
 | Symptom | Fix |
 |---|---|
-| `/new` says the agent is not installed | `openacp agents install claude --dir "$PIDEV_WORKSPACE_ROOT"` |
+| `/new` says the agent is not installed | `openacp agents install <claude\|codex\|gemini> --dir "$PIDEV_WORKSPACE_ROOT"`, or re-run `post-onboard.sh` |
 | Session starts, then every tool is denied with "not inside a registered, enabled project" | You started `/new` without a path, with a *name*, or with an unregistered folder. Use `/project <name>` and copy its `/new` command. |
 | "Workspace path … is outside base directory" | Intended (`allowExternalWorkspaces=false`). The project must live under `PIDEV_WORKSPACE_ROOT`. |
 | Plugin commands missing (`/projects`) | `openacp plugins --dir …`, then re-run `post-onboard.sh`. The service needs `Environment=PIDEV_HOME=…` (set by the unit). If PiDev can't load, the plugin blocks **all** messages (fail closed). Check the logs for "PiDev plugin failed to load". |

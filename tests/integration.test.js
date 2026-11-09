@@ -165,7 +165,8 @@ test('applyOpenacpSettings locks down an OpenACP instance and refuses empty allo
   fs.writeFileSync(path.join(inst, 'config.json'), JSON.stringify({ defaultAgent: 'claude', runMode: 'daemon', workspace: { allowExternalWorkspaces: true } }));
   fs.writeFileSync(path.join(inst, 'plugins', 'data', '@openacp', 'security', 'settings.json'), JSON.stringify({ allowedUserIds: [], maxConcurrentSessions: 20 }));
   fs.writeFileSync(path.join(inst, 'plugins', 'data', '@openacp', 'tunnel', 'settings.json'), JSON.stringify({ enabled: true }));
-  const cfg = { workspaceRoot: ws.root, allowedUserIds: ['111111111'], maxConcurrentTasks: 1 };
+  fs.writeFileSync(path.join(inst, 'agents.json'), JSON.stringify({ version: 1, installed: { claude: { command: 'claude-agent-acp', args: [], env: {} } } }));
+  const cfg = { workspaceRoot: ws.root, allowedUserIds: ['111111111'], maxConcurrentTasks: 1, provider: 'claude' };
 
   const dry = applyOpenacpSettings(cfg, { dryRun: true });
   assert.ok(dry.changes.length >= 4);
